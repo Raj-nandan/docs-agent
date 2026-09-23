@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+*.bak
+*.tmp-*
+test-qwen
+AGENTS.md
