@@ -94,12 +94,14 @@ export async function generateDoc(
 }
 
 // Strip common model chatter/fences so saved files hold only the artifact.
+// Also strips HTML comments (template instructions are passed as <!-- ... -->).
 export function sanitizeMarkdown(text: string): string {
   let out = text.trim();
   const fence = out.match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/);
   if (fence) out = fence[1].trim();
   out = out.replace(/^(Here is|Below is|Sure, here).*?\n+/i, "");
-  return out.trim() + "\n";
+  out = out.replace(/<!--[\s\S]*?-->/g, "");
+  return out.trim().replace(/\n{3,}/g, "\n\n") + "\n";
 }
 
 export async function listLocalModels(timeoutMs = 10000): Promise<string[]> {

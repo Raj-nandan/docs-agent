@@ -36,7 +36,8 @@ cp .env.example .env   # then set OPENROUTER_API_KEY and OLLAMA_MODEL
 node dist/cli.js status
 node dist/cli.js init my-app
 node dist/cli.js chat --dir my-app
-node dist/cli.js generate --all
+node dist/cli.js decisions --dir my-app
+node dist/cli.js generate --dir my-app --all
 ```
 
 ## Configuration (.env)
@@ -57,8 +58,8 @@ OLLAMA_NUM_CTX=4096       # lower (e.g. 2048) if Ollama OOMs on small machines
 | `chat --dir <path>` | Interview REPL: brief -> triage -> ranked options (arrow-key picker) -> saved state. `--dir` is required; never run from the agent repo root |
 | `chat --dir <path> --fresh` | Same, but wipe previous interview state first |
 | `reset --dir <path>` | Wipe `projectState.json` + `decisions.log.json` for a fresh start |
-| `generate --all \| --doc <id>` | Draft docs in pipeline order (planned, v0.3) |
-| `revise <file> "<instruction>"` | Rewrite a doc with diff preview + confirm (planned, v0.3) |
+| `generate --dir <path> --all \| --doc <id>` | Draft docs into `<path>/docs/` (needs a `chat` interview first) |
+| `revise --dir <path> <file> "<instruction>"` | Rewrite a doc with unified diff preview + confirm (keeps `.bak`) |
 | `decisions --dir <path>` | Show Jev answers, confidences, distributions, and total cost (`--json` for raw log) |
 | `status` / `doctor` | Health check for Ollama + Jev key |
 
@@ -113,6 +114,7 @@ Jev input is ~$0.042/M tokens, outputs free. A typical 3-question call is ~450 t
 - [x] v0.2 Jev layer: dynamic per-axis taxonomy + policy + triage guard + `decisions.log.json` + live `chat` interview (verified on llama3.2:3b)
 - [x] Interview UX: required `--dir`, repo-root guard, resume/new prompt, `--fresh`, `reset`, arrow-key picker, role colors
 - [x] `decisions --dir` readout with confidences and cost
+- [x] v0.3 pipeline: 12 templates, ordered `generate` with rolling summaries, low-confidence flags, `revise` with diff + `.bak`
 - [ ] v0.3 full pipeline: all 12 docs, templates, chaining, `revise` flow
 - [ ] v0.4 polish: `/model` picker, cost display, tests
 

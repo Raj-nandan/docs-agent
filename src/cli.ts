@@ -4,7 +4,10 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { config } from "./config";
 import { formatDecisionsLog, type LogEntry } from "./decisions/logView";
+import { isInteractive } from "./repl/ui";
 import { startChat } from "./repl";
+import { generateDocs } from "./writers/pipeline";
+import { paintResult, reviseDoc } from "./writers/revise";
 import { ensureDir, resolveInWorkdir, writeFileAtomic } from "./tools/files";
 import { listLocalModels, pingOllama } from "./writers/ollamaClient";
 
@@ -100,18 +103,50 @@ program
 
 program
   .command("generate")
-  .description("Draft docs in pipeline order (planned, v0.3)")
-  .option("--all", "Generate the full 12-doc set")
-  .option("--doc <id>", "Generate one doc, e.g. --doc 04-TRD")
-  .action(() => {
-    console.log("`generate` lands in v0.3 (pipeline + templates). See docs/11-tasks.md.");
+  .description("Draft docs into <project>/docs/ (needs a chat interview first)")
+  .requiredOption("--dir <path>", "Project directory")
+  .option("--all", "Generate the full 12-doc set in order")
+  .option("--doc <id>", "Generate one doc, e.g. --doc 01-BRD")
+  .action(async (opts: { dir: string; all?: boolean; doc?: string }) => {
+    if (Boolean(opts.all) === Boolean(opts.doc)) {
+      console.log("Pass exactly one of --all or --doc <id>.");
+      process.exitCode = 1;
+      return;
+    }
+    const dir = path.resolve(process.cwd(), opts.dir);
+    try {
+      const report = await generateDocs(dir, { docId: opts.doc });
+      for (const w of report.warnings) console.log(`Warning: ${w}`);
+      for (const f of report.generated) console.log(`Wrote ${f}`);
+    } catch (err) {
+      console.error(`Generate failed: ${err instanceof Error ? err.message : String(err)}`);
+      process.exitCode = 1;
+    }
   });
 
 program
   .command("revise <file> <instruction>")
-  .description("Rewrite a doc with diff preview (planned, v0.3)")
-  .action(() => {
-    console.log("`revise` lands in v0.3. See docs/05-FDD.md section 4.");
+  .description("Rewrite a project doc with diff preview + confirm (file is relative to --dir)")
+  .requiredOption("--dir <path>", "Project directory")
+  .action(async (file: string, instruction: string, opts: { dir: string }) => {
+    const dir = path.resolve(process.cwd(), opts.dir);
+    const textAsk = async (prompt: string): Promise<string | null> => {
+      if (isInteractive()) return null; // askConfirm handles TTY itself; this is piped-only
+      process.stdout.write(prompt);
+      try {
+        return fs.readFileSync(0, "utf8").split(/\r?\n/)[0] ?? null;
+      } catch {
+        return null;
+      }
+    };
+    try {
+      const res = await reviseDoc(dir, file, instruction, textAsk);
+      console.log(paintResult(res));
+      if (!res.written && res.message.startsWith("Cannot read")) process.exitCode = 1;
+    } catch (err) {
+      console.error(`Revise failed: ${err instanceof Error ? err.message : String(err)}`);
+      process.exitCode = 1;
+    }
   });
 
 program
