@@ -3,8 +3,9 @@ import { Command } from "commander";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { config } from "./config";
+import { formatDecisionsLog, type LogEntry } from "./decisions/logView";
 import { startChat } from "./repl";
-import { ensureDir, writeFileAtomic } from "./tools/files";
+import { ensureDir, resolveInWorkdir, writeFileAtomic } from "./tools/files";
 import { listLocalModels, pingOllama } from "./writers/ollamaClient";
 
 const program = new Command();
@@ -74,9 +75,27 @@ program
 program
   .command("chat")
   .description("Interview REPL: brief -> triage -> ranked options -> saved state")
-  .option("--dir <path>", "Project directory holding projectState.json", ".")
-  .action(async (opts: { dir: string }) => {
-    await startChat(path.resolve(process.cwd(), opts.dir));
+  .requiredOption("--dir <path>", "Project directory holding projectState.json")
+  .option("--fresh", "Wipe previous interview state and start over")
+  .action(async (opts: { dir: string; fresh?: boolean }) => {
+    await startChat(path.resolve(process.cwd(), opts.dir), { fresh: Boolean(opts.fresh) });
+  });
+
+program
+  .command("reset")
+  .description("Wipe interview state (projectState.json + decisions.log.json) for a fresh start")
+  .requiredOption("--dir <path>", "Project directory to reset")
+  .action((opts: { dir: string }) => {
+    const dir = path.resolve(process.cwd(), opts.dir);
+    let removed = 0;
+    for (const f of ["projectState.json", "decisions.log.json"]) {
+      const p = resolveInWorkdir(dir, f);
+      if (fs.existsSync(p)) {
+        fs.unlinkSync(p);
+        removed++;
+      }
+    } 
+    console.log(`Reset ${dir} (removed ${removed} file(s)).`);
   });
 
 program
@@ -97,9 +116,33 @@ program
 
 program
   .command("decisions")
-  .description("Show Jev decision log (planned, v0.2)")
-  .action(() => {
-    console.log("`decisions` lands in v0.2 with decisions.log.json. See docs/13-jev-taxonomy.md.");
+  .description("Show Jev decision log with confidences and cost")
+  .requiredOption("--dir <path>", "Project directory holding decisions.log.json")
+  .option("--json", "Print the raw log JSON")
+  .action((opts: { dir: string; json?: boolean }) => {
+    const dir = path.resolve(process.cwd(), opts.dir);
+    const file = resolveInWorkdir(dir, "decisions.log.json");
+    if (!fs.existsSync(file)) {
+      console.log(`No decisions.log.json in ${dir}. Run chat first.`);
+      return;
+    }
+    let entries: LogEntry[];
+    try {
+      const parsed: unknown = JSON.parse(fs.readFileSync(file, "utf8"));
+      entries = Array.isArray(parsed) ? (parsed as LogEntry[]) : [];
+    } catch {
+      console.log(`Cannot parse ${file}. It may be corrupt.`);
+      return;
+    }
+    if (!entries.length) {
+      console.log("Decision log is empty. Run chat first.");
+      return;
+    }
+    if (opts.json) {
+      console.log(JSON.stringify(entries, null, 2));
+      return;
+    }
+    console.log(formatDecisionsLog(dir, entries));
   });
 
 program.parseAsync(process.argv);

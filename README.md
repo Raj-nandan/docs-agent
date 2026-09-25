@@ -35,7 +35,7 @@ cp .env.example .env   # then set OPENROUTER_API_KEY and OLLAMA_MODEL
 
 node dist/cli.js status
 node dist/cli.js init my-app
-node dist/cli.js chat
+node dist/cli.js chat --dir my-app
 node dist/cli.js generate --all
 ```
 
@@ -46,6 +46,7 @@ OPENROUTER_API_KEY=      # required for Jev decisions
 JEV_MODEL=typesafe/jev-1.13
 OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=llama3.2:3b
+OLLAMA_NUM_CTX=4096       # lower (e.g. 2048) if Ollama OOMs on small machines
 ```
 
 ## Commands
@@ -53,10 +54,12 @@ OLLAMA_MODEL=llama3.2:3b
 | Command | What it does |
 |---|---|
 | `init <name>` | Scaffold `<name>/docs/`, `projectState.json`, `decisions.log.json` |
-| `chat` | REPL: describe the idea, answer ranked questions |
-| `generate --all \| --doc <id>` | Draft docs in pipeline order |
-| `revise <path> "<instruction>"` | Rewrite a doc with diff preview + confirm |
-| `decisions` | Show last Jev answers, confidences, and cost |
+| `chat --dir <path>` | Interview REPL: brief -> triage -> ranked options (arrow-key picker) -> saved state. `--dir` is required; never run from the agent repo root |
+| `chat --dir <path> --fresh` | Same, but wipe previous interview state first |
+| `reset --dir <path>` | Wipe `projectState.json` + `decisions.log.json` for a fresh start |
+| `generate --all \| --doc <id>` | Draft docs in pipeline order (planned, v0.3) |
+| `revise <file> "<instruction>"` | Rewrite a doc with diff preview + confirm (planned, v0.3) |
+| `decisions --dir <path>` | Show Jev answers, confidences, distributions, and total cost (`--json` for raw log) |
 | `status` / `doctor` | Health check for Ollama + Jev key |
 
 ## Doc set (generated per project, in order)
@@ -106,10 +109,12 @@ Jev input is ~$0.042/M tokens, outputs free. A typical 3-question call is ~450 t
 ## Roadmap
 
 - [x] Design docs (`docs/`, 12 docs + taxonomy + prompts)
-- [ ] v0.1 skeleton: CLI + Ollama + file tools + templates
-- [ ] v0.2 Jev layer: dynamic taxonomy + policy + guard + `decisions` log
-- [ ] v0.3 full pipeline: all 12 docs, chaining, `revise` flow
-- [ ] v0.4 polish: `/model` picker, offline fallback, `doctor`, tests
+- [x] v0.1 skeleton: CLI + Ollama (4k ctx, think off) + file tools (templates pending)
+- [x] v0.2 Jev layer: dynamic per-axis taxonomy + policy + triage guard + `decisions.log.json` + live `chat` interview (verified on llama3.2:3b)
+- [x] Interview UX: required `--dir`, repo-root guard, resume/new prompt, `--fresh`, `reset`, arrow-key picker, role colors
+- [x] `decisions --dir` readout with confidences and cost
+- [ ] v0.3 full pipeline: all 12 docs, templates, chaining, `revise` flow
+- [ ] v0.4 polish: `/model` picker, cost display, tests
 
 ## Style
 
